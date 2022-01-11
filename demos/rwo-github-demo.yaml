@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rwo-test
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rwo-test
+  labels:
+    app: rwo-test
+spec:
+  ports:
+    - port: 80
+  selector:
+    app: rwo-test
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rwo-test
+  labels:
+    app: rwo-test
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rwo-test
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: rwo-test
+    spec:
+      containers:
+        - image: ubuntu:xenial
+          imagePullPolicy: IfNotPresent
+          command: [ "/bin/sh", "-c" ]
+          args:
+            - sleep 10; touch /data/index.html; while true; do printf "$HOSTNAME - $(date)\n" >> /data/index.html; sleep 1; done;
+          name: rwo-test
+          stdin: true
+          tty: true
+          volumeMounts:
+            - mountPath: /data
+              name: rwo-test
+        - image: nginx:stable
+          imagePullPolicy: IfNotPresent
+          name: nginx
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - mountPath: /usr/share/nginx/html
+              name: rwo-test
+      restartPolicy: Always
+      volumes:
+        - name: rwo-test
+          persistentVolumeClaim:
+            claimName: rwo-test
